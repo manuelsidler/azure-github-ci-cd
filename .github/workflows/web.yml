@@ -1,0 +1,58 @@
+name: Web
+
+on:
+  push:
+    paths:
+      - 'src/web/**'
+      - '.github/workflows/web.yml'
+    branches:
+      - '**'
+
+env:
+  BUILD_CONFIGURATION: Release
+  PUBLISH_OUTPUT: web_publish_output
+  AZURE_WEBAPP_NAME: app-dev-blog
+  WEB_PROJECT: ./src/web/HelloWorld.csproj
+
+jobs:
+  CI:
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v2
+
+    - name: Setup .NET Core
+      uses: actions/setup-dotnet@v1
+      with:
+        dotnet-version: 5.0.100
+
+    - name: build web
+      run: dotnet build ${{ env.WEB_PROJECT }}
+        
+  CD:
+    needs: [CI]
+    if: success() && (github.ref == 'refs/heads/main')
+    
+    runs-on: ubuntu-latest
+    
+    steps:
+      - uses: actions/checkout@v2
+        
+      - name: Setup .NET Core
+        uses: actions/setup-dotnet@v1
+        with:
+          dotnet-version: 5.0.100
+
+      - name: publish web
+        run: dotnet publish ${{ env.WEB_PROJECT }} -c ${{ env.BUILD_CONFIGURATION }} -o ${{ env.PUBLISH_OUTPUT }}
+          
+      - name: login to azure
+        uses: Azure/login@v1
+        with:
+          creds: ${{ secrets.AZURE_DEPLOYMENT_CREDENTIALS }}
+      
+      - name: deploy to azure
+        uses: Azure/webapps-deploy@v2
+        with:
+          app-name: ${{ env.AZURE_WEBAPP_NAME }}
+          package: './${{ env.PUBLISH_OUTPUT }}'
