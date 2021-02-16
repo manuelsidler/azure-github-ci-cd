@@ -1,0 +1,55 @@
+name: Azure
+
+on:
+  push:
+    paths:
+      - 'src/azure/**'
+      - '.github/workflows/azure.yml'
+    branches:
+      - '**'
+
+env:
+  AZURE_RESOURCE_GROUP: 'rg-dev-blog'
+  TEMPLATE_FILE: 'src/azure/azuredeploy.json'
+  PARAMETERS_FILE: 'src/azure/azuredeploy.parameters.json'
+
+jobs:
+  CI:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v2
+
+      - name: login to Azure
+        uses: Azure/login@v1
+        with:
+          creds: ${{ secrets.AZURE_DEPLOYMENT_CREDENTIALS }}
+
+      - name: validate template
+        uses: Azure/cli@v1.0.0
+        with:
+          inlineScript: 'az deployment group validate --resource-group ${{ env.AZURE_RESOURCE_GROUP}} --template-file ${{ env.TEMPLATE_FILE }} --parameters ${{ env.PARAMETERS_FILE }}'
+
+      - name: what-if
+        uses: Azure/cli@v1.0.0
+        with:
+          inlineScript: 'az deployment group what-if --resource-group ${{ env.AZURE_RESOURCE_GROUP}} --template-file ${{ env.TEMPLATE_FILE }} --parameters ${{ env.PARAMETERS_FILE }}'
+
+  CD:
+    needs: [CI]
+    if: success() && (github.ref == 'refs/heads/main')
+
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v2
+
+      - name: login to Azure
+        uses: Azure/login@v1
+        with:
+          creds: ${{ secrets.AZURE_DEPLOYMENT_CREDENTIALS }}
+
+      - name: deploy
+        uses: Azure/cli@v1.0.0
+        with:
+          inlineScript: 'az deployment group create --resource-group ${{ env.AZURE_RESOURCE_GROUP}} --template-file ${{ env.TEMPLATE_FILE }} --parameters ${{ env.PARAMETERS_FILE }}'
